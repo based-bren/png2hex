@@ -2,11 +2,11 @@
 
 import { useState, useRef } from 'react'
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Cloud } from '@/components/Cloud'
 import { Pipe } from '@/components/Pipe'
 import { Block } from '@/components/Block'
 import { cn } from "@/lib/utils"
+import Image from 'next/image'
 
 export default function PngConverter() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
@@ -14,13 +14,6 @@ export default function PngConverter() {
   const [outputHex, setOutputHex] = useState(false)
   const [output, setOutput] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const rgbToHex = (r: number, g: number, b: number) => {
-    return [r, g, b].map(x => {
-      const hex = x.toString(16)
-      return hex.length === 1 ? '0' + hex : hex
-    }).join('')
-  }
 
   const processImage = (imageFile: File): Promise<string[]> => {
     return new Promise((resolve, reject) => {
@@ -73,7 +66,7 @@ export default function PngConverter() {
     })
   }
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement> | { target: { files: File[] } }) => {
     const files = Array.from(event.target.files || [])
     setSelectedFiles(files)
     
@@ -163,7 +156,7 @@ export default function PngConverter() {
               setSolidityExport(!solidityExport)
               setOutputHex(false)
               if (selectedFiles.length > 0) {
-                handleFileChange({ target: { files: selectedFiles }} as any)
+                handleFileChange({ target: { files: selectedFiles }})
               }
             }}
             className={cn(
@@ -181,7 +174,7 @@ export default function PngConverter() {
               setOutputHex(!outputHex)
               setSolidityExport(false)
               if (selectedFiles.length > 0) {
-                handleFileChange({ target: { files: selectedFiles }} as any)
+                handleFileChange({ target: { files: selectedFiles }})
               }
             }}
             className={cn(
@@ -198,12 +191,14 @@ export default function PngConverter() {
         {selectedFiles.length > 0 && (
           <div className="mb-6 flex gap-2 overflow-x-auto">
             {selectedFiles.map((file, index) => (
-              <img
-                key={index}
-                src={URL.createObjectURL(file)}
-                alt={`PNG ${index + 1}`}
-                className="h-32 w-32 object-contain pixelated border-4 border-yellow-400"
-              />
+              <div key={index} className="h-32 w-32 relative">
+                <Image
+                  src={URL.createObjectURL(file)}
+                  alt={`PNG ${index + 1}`}
+                  fill
+                  className="object-contain pixelated border-4 border-yellow-400"
+                />
+              </div>
             ))}
           </div>
         )}
