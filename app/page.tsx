@@ -1,101 +1,219 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useState, useRef } from 'react'
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Cloud } from '@/components/Cloud'
+import { Pipe } from '@/components/Pipe'
+import { Block } from '@/components/Block'
+import { cn } from "@/lib/utils"
+
+export default function PngConverter() {
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [solidityExport, setSolidityExport] = useState(false)
+  const [outputHex, setOutputHex] = useState(false)
+  const [output, setOutput] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const rgbToHex = (r: number, g: number, b: number) => {
+    return [r, g, b].map(x => {
+      const hex = x.toString(16)
+      return hex.length === 1 ? '0' + hex : hex
+    }).join('')
+  }
+
+  const processImage = (imageFile: File): Promise<string[]> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        if (img.width !== 32 || img.height !== 32) {
+          reject('Image must be 32x32 pixels')
+          return
+        }
+
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject('Could not get canvas context')
+          return
+        }
+        
+        canvas.width = 32
+        canvas.height = 32
+        ctx.drawImage(img, 0, 0)
+
+        const imageData = ctx.getImageData(0, 0, 32, 32)
+        const pixels = imageData.data
+        const output: string[] = []
+
+        for (let y = 0; y < 32; y++) {
+          for (let x = 0; x < 32; x++) {
+            const index = (y * 32 + x) * 4
+            const red = pixels[index]
+            const green = pixels[index + 1]
+            const blue = pixels[index + 2]
+            const alpha = pixels[index + 3]
+            if (alpha > 0) {
+              output.push(`${x},${y},${red},${green},${blue}`)
+            }
+          }
+        }
+        resolve(output)
+      }
+
+      img.onerror = () => reject('Error loading image')
+
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        if (e.target?.result) {
+          img.src = e.target.result as string
+        }
+      }
+      reader.readAsDataURL(imageFile)
+    })
+  }
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || [])
+    setSelectedFiles(files)
+    
+    try {
+      const results: string[] = []
+      const hexValues: string[] = []
+      const fileNames: string[] = []
+
+      for (const file of files) {
+        if (file.type !== 'image/png') {
+          throw new Error('Please select PNG files only.')
+        }
+
+        const pixelData = await processImage(file)
+        let result: string
+
+        const numberArray = pixelData.flatMap(pixel => {
+          const [x, y, r, g, b] = pixel.split(',').map(Number)
+          return [x, y, r, g, b]
+        })
+
+        if (solidityExport || outputHex) {
+          result = numberArray.map(num => 
+            num.toString(16).padStart(2, '0')
+          ).join('')
+          
+          hexValues.push(result)
+          fileNames.push(file.name.replace('.png', ''))
+        } else {
+          result = numberArray.join(',')
+        }
+
+        if (!solidityExport) {
+          results.push(`${file.name} = ${result}`)
+        }
+      }
+
+      if (solidityExport) {
+        const hexArray = hexValues.map(hex => `bytes(hex"${hex}")`).join(',\n')
+        const namesArray = fileNames.map(name => `"${name}"`).join(',\n')
+        setOutput(`// Hex values array:\n[\n${hexArray}\n]\n\n// Names array:\n[\n${namesArray}\n]`)
+      } else if (outputHex) {
+        setOutput(results.join('\n'))
+      } else {
+        setOutput(results.join('\n'))
+      }
+    } catch (error) {
+      setOutput(`Error: ${error}`)
+      setSelectedFiles([])
+    }
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="min-h-screen bg-sky-300 text-white p-8 relative overflow-hidden">
+      <Cloud className="absolute top-10 left-10" />
+      <Cloud className="absolute top-20 right-20" />
+      <Cloud className="absolute bottom-40 left-1/4" />
+      
+      <h1 className="text-4xl mb-8 text-center text-yellow-300 drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]">
+        PNG to Code Converter
+      </h1>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      <div className="max-w-2xl mx-auto bg-white p-6 rounded-lg border-8 border-red-500 relative">
+        <Block className="absolute -top-8 -left-8" />
+        <Block className="absolute -top-8 -right-8" />
+        
+        <div className="mb-6">
+          <Button 
+            onClick={() => fileInputRef.current?.click()} 
+            className="w-full bg-red-500 hover:bg-red-600"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            Select PNG Files
+          </Button>
+          <input
+            type="file"
+            accept="image/png"
+            onChange={handleFileChange}
+            className="hidden"
+            ref={fileInputRef}
+            multiple
+          />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        <div className="flex justify-between gap-4 mb-6">
+          <Button
+            onClick={() => {
+              setSolidityExport(!solidityExport)
+              setOutputHex(false)
+              if (selectedFiles.length > 0) {
+                handleFileChange({ target: { files: selectedFiles }} as any)
+              }
+            }}
+            className={cn(
+              "flex-1 text-sm transition-colors",
+              solidityExport 
+                ? "bg-green-500 hover:bg-green-600" 
+                : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+            )}
+          >
+            Solidity Export
+          </Button>
+
+          <Button
+            onClick={() => {
+              setOutputHex(!outputHex)
+              setSolidityExport(false)
+              if (selectedFiles.length > 0) {
+                handleFileChange({ target: { files: selectedFiles }} as any)
+              }
+            }}
+            className={cn(
+              "flex-1 text-sm transition-colors",
+              outputHex 
+                ? "bg-green-500 hover:bg-green-600" 
+                : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+            )}
+          >
+            Output as Hexadecimal
+          </Button>
+        </div>
+
+        {selectedFiles.length > 0 && (
+          <div className="mb-6 flex gap-2 overflow-x-auto">
+            {selectedFiles.map((file, index) => (
+              <img
+                key={index}
+                src={URL.createObjectURL(file)}
+                alt={`PNG ${index + 1}`}
+                className="h-32 w-32 object-contain pixelated border-4 border-yellow-400"
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="bg-black p-4 rounded border-4 border-yellow-400 h-64 overflow-auto relative">
+          <pre className="text-green-400 whitespace-pre-wrap break-all">{output}</pre>
+          <Pipe className="absolute -bottom-8 -right-8 transform -rotate-90" />
+        </div>
+      </div>
     </div>
-  );
+  )
 }
+
