@@ -17,7 +17,7 @@ export default function PngConverter() {
 
   const processImage = (imageFile: File): Promise<string[]> => {
     return new Promise((resolve, reject) => {
-      const img = new Image()
+      const img = new window.Image()
       img.onload = () => {
         if (img.width !== 32 || img.height !== 32) {
           reject('Image must be 32x32 pixels')
